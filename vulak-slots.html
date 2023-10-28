@@ -1,0 +1,232 @@
+<html>
+<head>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css"/>
+<style>
+.debug {
+	 position: fixed;
+	 top: 4px;
+	 left: 50%;
+	 transform: translateX(-50%);
+	 padding: 4px;
+	 background: white;
+	 border: 1px solid rgba(0, 0, 0, 0.3);
+	 font-family: monospace;
+	 font-size: 1.6rem;
+}
+ html, body {
+	 height: 100%;
+}
+ body {
+	 display: flex;
+	 justify-content: center;
+	 align-items: center;
+	 background: linear-gradient(45deg, grey 0%, lightgray 100%);
+}
+ .slots {
+	 position: relative;
+	 width: 280px;
+	 height: 240px;
+	 display: flex;
+	 justify-content: space-between;
+	 padding: 24px;
+	 background: linear-gradient(45deg, grey 0%, lightgray 100%);
+	 border-top: 1px solid rgba(255, 255, 255, 0.6);
+	 border-right: 1px solid rgba(255, 255, 255, 0.6);
+	 border-left: 1px solid rgba(0, 0, 0, 0.4);
+	 border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+	 box-shadow: -2px 2px 3px rgba(0, 0, 0, 0.3);
+	 border-radius: 3px;
+}
+ .slots::before, .slots::after {
+	 content: "";
+	 position: absolute;
+	 top: 50%;
+	 width: 10px;
+	 height: 2px;
+	 background-color: rgba(0, 0, 0, 0.5);
+}
+ .slots::before {
+	 left: 0;
+	 transform: translate(-200%, -50%);
+}
+ .slots::after {
+	 right: 0;
+	 transform: translate(200%, -50%);
+}
+ @keyframes win1 {
+	 0% {
+		 background: linear-gradient(45deg, orange 0%, yellow 100%);
+		 box-shadow: 0 0 80px orange;
+	}
+	 100% {
+		 background: linear-gradient(45deg, grey 0%, lightgrey 100%);
+		 box-shadow: -2px 2px 3px rgba(0, 0, 0, 0.3);
+	}
+}
+ @keyframes win2 {
+	 0% {
+		 background: linear-gradient(45deg, lightblue 0%, lightgreen 100%);
+		 box-shadow: 0 0 80px lightgreen;
+	}
+	 100% {
+		 background: linear-gradient(45deg, grey 0%, lightgrey 100%);
+		 box-shadow: -2px 2px 3px rgba(0, 0, 0, 0.3);
+	}
+}
+ .slots.win1 {
+	 animation: win1 200ms steps(2, end) infinite;
+}
+ .slots.win2 {
+	 animation: win2 200ms steps(2, end) infinite;
+}
+ .slots .reel {
+	 position: relative;
+	 width: 80px;
+	 height: 240px;
+	 border: 1px solid rgba(0, 0, 0, 0.3);
+	 border-radius: 3px;
+	 overflow: hidden;
+	 background-image: url(items.png);
+	 background-position: 0 0;
+	 background-repeat: repeat-y;
+}
+ .slots .reel::after {
+	 content: "";
+	 position: absolute;
+	 top: 0;
+	 left: 0;
+	 width: 100%;
+	 height: 100%;
+	 background-image: linear-gradient(rgba(0, 0, 0, 0.4) 0%, transparent 30%, transparent 70%, rgba(0, 0, 0, 0.4) 100%);
+	 box-shadow: inset 0 0 6px 2px rgba(0, 0, 0, 0.3);
+}
+ .slots p {
+	 position: absolute;
+	 bottom: 0;
+	 left: 50%;
+	 width: 100%;
+	 transform: translate(-50%, calc(100% + 30px));
+	 text-align: center;
+	 font-size: 0.8rem;
+	 color: #444;
+}
+ .slots p a {
+	 color: red;
+	 font-weight: 700;
+}
+</style>
+</head>
+<body translate="no">
+
+<div class="slots">
+	<div class="reel"></div>
+	<div class="reel"></div>
+	<div class="reel"></div>
+</div>
+
+<div id="debug" class="debug"></div>
+
+<script>
+/**
+ * Setup
+ */
+const debugEl = document.getElementById('debug'),
+			
+			orderedIconMap = ["Brother Xave's", "Mrylokar's", "Tolan's", "Hobart's", "Do'Vassir's", "Solist's", "Rowyl's", "Yakatizma's", "Crystasia's", "Palladius'", "Akkirus'", "Valtron's", "Feeliux's", "Vyrinn's", "Maclaer's", "Sal'Varae's", "Viik's", "Gharn's", "Abashi's", "Jaelen's", "Ssra's", "Sirran's", "Camii's", "Kelsiferous'"],
+			// Width of the icons
+			icon_width = 80,	
+			// Height of one icon in the strip
+			icon_height = 80,	
+			// Number of icons in the strip
+			num_icons = 24,	
+			// Max-speed in ms for animating one icon down
+			time_per_icon = 100,
+			// Holds icon indexes
+			indexes = [0, 0, 0];
+
+// Mapping of indexes to icons: start from second and then upwards
+const iconMap = [];
+iconMap.push(orderedIconMap[1]);
+iconMap.push(orderedIconMap[0]);
+
+for(let i = 2; i < orderedIconMap.length; i++)
+{
+	iconMap.push(orderedIconMap[orderedIconMap.length - i + 1]);
+}
+
+/** 
+ * Roll one reel
+ */
+const roll = (reel, offset = 0) => {
+	// Minimum of 2 + the reel offset rounds
+	const delta = (offset + 2) * num_icons + Math.round(Math.random() * num_icons); 
+	
+	// Return promise so we can wait for all reels to finish
+	return new Promise((resolve, reject) => {
+		
+		const style = getComputedStyle(reel),
+					// Current background position
+					backgroundPositionY = parseFloat(style["background-position-y"]),
+					// Target background position
+					targetBackgroundPositionY = backgroundPositionY + delta * icon_height,
+					// Normalized background position, for reset
+					normTargetBackgroundPositionY = targetBackgroundPositionY%(num_icons * icon_height);
+		
+		// Delay animation with timeout, for some reason a delay in the animation property causes stutter
+		setTimeout(() => { 
+			// Set transition properties ==> https://cubic-bezier.com/#.41,-0.01,.63,1.09
+			reel.style.transition = `background-position-y ${(8 + 1 * delta) * time_per_icon}ms cubic-bezier(.41,-0.01,.63,1.09)`;
+			// Set background position
+			reel.style.backgroundPositionY = `${backgroundPositionY + delta * icon_height}px`;
+		}, offset * 150);
+			
+		// After animation
+		setTimeout(() => {
+			// Reset position, so that it doesn't get higher without limit
+			reel.style.transition = `none`;
+			reel.style.backgroundPositionY = `${normTargetBackgroundPositionY}px`;
+			// Resolve this promise
+			resolve(delta%num_icons);
+		}, (8 + 1 * delta) * time_per_icon + offset * 150);
+		
+	});
+};
+
+
+/**
+ * Roll all reels, when promise resolves roll again
+ */
+function rollAll() {
+	debugEl.textContent = 'rolling...';
+	
+	const reelsList = document.querySelectorAll('.slots > .reel');
+	
+	Promise
+		
+		// Activate each reel, must convert NodeList to Array for this with spread operator
+		.all( [...reelsList].map((reel, i) => roll(reel, i)) )	
+		
+		// When all reels done animating (all promises solve)
+		.then((deltas) => {
+			// add up indexes
+			deltas.forEach((delta, i) => indexes[i] = (indexes[i] + delta)%num_icons);
+			debugEl.textContent = indexes.map((i) => iconMap[i]).join(' - ');
+		
+			// Win conditions
+			if (indexes[0] == indexes[1] || indexes[1] == indexes[2]) {
+				const winCls = indexes[0] == indexes[2] ? "win2" : "win1";
+				document.querySelector(".slots").classList.add(winCls);
+				setTimeout(() => document.querySelector(".slots").classList.remove(winCls), 2000)
+			}
+		
+			// Again!
+			setTimeout(rollAll, 3000);
+		});
+};
+
+// Kickoff
+setTimeout(rollAll, 1000);
+</script>
+
+</body>
+</html>
